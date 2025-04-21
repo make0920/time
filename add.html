@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
     <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
     <script src="https://unpkg.com/element-ui/lib/index.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     <style>
         body {
             font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif;
@@ -74,37 +75,23 @@
             <el-form :model="formData" :rules="rules" ref="form" label-width="100px">
                 <el-form-item label="公司/账号" prop="company" required>
                     <div style="display: flex; align-items: center; gap: 10px;">
-                      <!-- 公司选择 -->
-                      <el-select
-                        v-model="formData.company"
-                        placeholder="选择公司"
-                        @change="handleCompanyChange"
-                        style="flex: 1"
-                        filterable>
-                        <el-option
-                          v-for="company in companies"
-                          :key="company.name"
-                          :label="company.name"
-                          :value="company.name">
-                        </el-option>
-                      </el-select>
-                      
-                      <!-- 账号选择 -->
-                      <el-select
-                        v-model="formData.account"
-                        placeholder="选择账号"
-                        style="flex: 1"
-                        :disabled="!formData.company"
-                        filterable>
-                        <el-option
-                          v-for="account in filteredAccounts"
-                          :key="account"
-                          :label="account"
-                          :value="account">
-                        </el-option>
-                      </el-select>
+                        <!-- 公司选择 -->
+                        <el-select v-model="formData.company" placeholder="选择公司" @change="handleCompanyChange"
+                            style="flex: 1" filterable>
+                            <el-option v-for="company in companies" :key="company.name" :label="company.name"
+                                :value="company.name">
+                            </el-option>
+                        </el-select>
+
+                        <!-- 账号选择 -->
+                        <el-select v-model="formData.account" placeholder="选择账号" style="flex: 1"
+                            :disabled="!formData.company" filterable>
+                            <el-option v-for="account in filteredAccounts" :key="account" :label="account"
+                                :value="account">
+                            </el-option>
+                        </el-select>
                     </div>
-                  </el-form-item>
+                </el-form-item>
 
                 <!-- 封禁原因 -->
                 <el-form-item label="封禁原因" prop="banReason">
@@ -130,6 +117,8 @@
                 </el-form-item>
 
                 <el-form-item class="form-footer">
+                    <!-- 提交按钮和弹窗 -->
+                    <el-button type="primary" @click="showTokenDialog">提交数据</el-button>
                     <el-button type="primary" @click="handleSubmit" :loading="submitting">
                         生成数据
                     </el-button>
@@ -146,6 +135,16 @@
                 </div>
                 <pre>{{ generatedData }}</pre>
             </el-card>
+            <el-dialog title="输入解密密码" :visible.sync="tokenDialogVisible" width="400px" :close-on-click-modal="false"
+                :show-close="false">
+                <el-input v-model="inputPassword" type="password" placeholder="请输入您的解密密码"
+                    @keyup.enter.native="handleDecrypt" clearable>
+                </el-input>
+                <div slot="footer">
+                    <el-button @click="cancelDecrypt">取消</el-button>
+                    <el-button type="primary" @click="handleDecrypt">解密并提交</el-button>
+                </div>
+            </el-dialog>
         </div>
     </div>
 
@@ -196,13 +195,115 @@
                     },
                     existingData: [],
                     generatedData: null,
-                    submitting: false
+                    submitting: false,
+                    tokenDialogVisible: false,
+                    inputPassword: '',
+                    // 加密后的token（用您的密码加密真实token后替换）
+                    encryptedToken: 'U2FsdGVkX1/yPRYXccxNljkjrfS6iEcVheL2Waok40bF0CKUopOcnd/RwUfg8HNFVatjmRarmrxzGv9WToux6lHMTCBKmolNeGOdCXKpZNGdIbVfjv5JdmViFQyHgCaRo7/VboFeBJzukreeFS21kw==', // 示例加密值
+                    // 这个值是用密码"mySecret123"加密真实token得到的结果
+                    newToken: ''
                 }
             },
             created() {
                 this.loadExistingData();
             },
             methods: {
+                showTokenDialog() {
+                    this.tokenDialogVisible = true;
+                    this.inputPassword = '';
+                },
+
+                cancelDecrypt() {
+                    this.tokenDialogVisible = false;
+                    this.$message.warning('已取消提交');
+                },
+
+                handleDecrypt() {
+                    if (!this.inputPassword) {
+                        this.$message.warning('请输入解密密码');
+                        return;
+                    }
+                    try {
+                        // 解密token
+                        const bytes = CryptoJS.AES.decrypt(this.encryptedToken, this.inputPassword);
+                        const decryptedToken = bytes.toString(CryptoJS.enc.Utf8);
+                        
+                        
+                        // 如果没有正确解密会得到空字符串
+                        if (!decryptedToken) {
+                            throw new Error('解密失败');
+                        }
+
+                        this.tokenDialogVisible = false;
+                        this.newToken = decryptedToken
+                        this.submitWithToken(decryptedToken);
+                    } catch (error) {
+                        // 不提示具体错误原因，防止暴力破解
+                        this.$message.error('操作失败');
+                    }
+                },
+
+                async submitWithToken(token) {
+                    // 这里使用解密后的token调用GitHub API
+                    try {
+                        const result = await this.updateToGitHub(token, this.formData);
+                        this.$message.success('数据提交成功');
+                    } catch (error) {
+                        this.$message.error('提交失败');
+                    }
+                },
+
+                async updateToGitHub(token, newData) {
+                    // 您的GitHub API调用代码
+                    // 使用参数token而不是硬编码的token
+                    const username = 'make0920';
+                    const repo = 'demo';
+                    const token = 'token'; // 实际使用中应该更安全地存储
+
+                    try {
+                        // 1. 获取当前文件
+                        const getResponse = await fetch(
+                            `https://api.github.com/repos/${username}/${repo}/contents/row.json`,
+                            {
+                                headers: {
+                                    'Authorization': `token ${token}`,
+                                    'Accept': 'application/vnd.github.v3+json'
+                                }
+                            }
+                        );
+
+                        const fileData = await getResponse.json();
+                        const currentContent = JSON.parse(atob(fileData.content));
+
+                        // 2. 更新数据
+                        const updatedContent = [...currentContent, newData].sort((a, b) =>
+                            new Date(a.unsealTime) - new Date(b.unsealTime)
+                        );
+
+                        // 3. 提交更新
+                        const updateResponse = await fetch(
+                            `https://api.github.com/repos/${username}/${repo}/contents/row.json`,
+                            {
+                                method: 'PUT',
+                                headers: {
+                                    'Authorization': `token ${token}`,
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({
+                                    message: '通过网页添加新数据',
+                                    content: btoa(JSON.stringify(updatedContent, null, 2)),
+                                    sha: fileData.sha
+                                })
+                            }
+                        );
+
+                        alert('数据已提交！可能需要几分钟同步到GitHub Pages');
+                    } catch (error) {
+                        console.error('更新失败:', error);
+                        alert('提交失败: ' + error.message);
+                    }
+                },
+
                 loadExistingData() {
                     // 模拟从row.json加载现有数据
                     fetch('row.json')
@@ -256,20 +357,20 @@
                     };
 
                     // 3. 合并并排序数据
-                    const combinedData = [...this.existingData, newData];
+                    const combinedData = [...this.existingData, newData];const combinedData =[…]existingData newData);
 
                     // 按解封时间排序
-                    combinedData.sort((a, b) => {
-                        return new Date(a.unsealTime) - new Date(b.unsealTime);
+                    combinedData.sort((a, b) => {combinedData。Sort ((a, b) = bb0 {
+                        return new Date(a.unsealTime) - new Date(b.unsealTime);返回新的日期(a.a unsealtime) -新的日期（b.a unsealtime）；
                     });
 
                     // 4. 生成JSON字符串
-                    this.generatedData = JSON.stringify(combinedData, null, 2);
+                    this.generatedData = JSON.stringify(combinedData, null, 2);this。generatedData = JSON。stringify(组合，null, 2);
 
                     this.$message.success('数据生成成功');
                 },
                 copyToClipboard() {
-                    if (!this.generatedData) return;
+                    if (!this.generatedData) return;if (!this.generatedData) return；
 
                     const textarea = document.createElement('textarea');
                     textarea.value = this.generatedData;
@@ -287,7 +388,7 @@
                 }
             }
         });
-    </script>
+    </script>   > < /脚本
 </body>
 
 </html>
