@@ -1,0 +1,26 @@
+[
+    {
+      "account": "hc21515@163.com",
+      "company": "四川辉晨网络有限公司",
+      "banReason": "商户签约风险",
+      "restriction": "拦截商户签约动作",
+      "balance": 0.8,
+      "unsealTime": "2025-05-03T17:29:13"
+    },
+    {
+      "account": "xc457673@163.com",
+      "company": "四川祥春网络有限公司",
+      "banReason": "商户签约风险",
+      "restriction": "拦截商户签约动作",
+      "balance": 0.73,
+      "unsealTime": "2025-05-05T15:29:53"
+    },
+    {
+      "account": "hc31511@163.com",
+      "company": "四川辉晨网络有限公司",
+      "banReason": "商户签约风险",
+      "restriction": "拦截商户签约动作",
+      "balance": 3.98,
+      "unsealTime": "2025-05-08T11:45:22"
+    }
+  ]

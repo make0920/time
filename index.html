@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>解封倒计时</title>
+    <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+    <script src="https://unpkg.com/element-ui/lib/index.js"></script>
+
+</head>
+
+<body>
+    <div id="app">
+        <div class="header">
+            <div class="gradient-title">解封倒计时</div>
+            <div class="current-time">{{ currentTime }}</div>
+        </div>
+
+        <div class="content-box">
+            <div class="tab-header">
+                <el-tabs v-model="activeTab" @tab-click="handleTabClick">
+                    <el-tab-pane label="未解封" name="sealed"></el-tab-pane>
+                    <el-tab-pane label="近期解封" name="recent"></el-tab-pane>
+                    <el-tab-pane label="历史已解封" name="unsealed"></el-tab-pane>
+                </el-tabs>
+                <div class="color-indicator">
+                    <div class="color-box sealed-bg"></div>未解封
+                    <div class="color-box unsealed-bg"></div>已解封
+                </div>
+                <div class="action-buttons">
+                    <el-button type="primary" icon="el-icon-circle-plus" @click="goToAddPage" class="add-button">
+                        添加数据
+                    </el-button>
+                </div>
+            </div>
+
+            <el-table :data="filteredData" style="width: 100%" :row-class-name="tableRowClassName"
+                :default-sort="{prop: 'unsealTime', order: activeTab === 'sealed' ? 'ascending' : 'descending'}">
+                <el-table-column prop="unsealTime" label="解封时间" width="160" sortable>
+                    <template slot-scope="scope">
+                        {{ formatDateTime(scope.row.unsealTime) }}
+                    </template>
+                </el-table-column>
+                <el-table-column prop="account" label="账号" width="150">
+                </el-table-column>
+                <el-table-column prop="company" label="公司名称" width="200">
+                </el-table-column>
+                <el-table-column prop="banReason" label="封禁原因" width="180">
+                </el-table-column>
+                <el-table-column prop="restriction" label="限制内容">
+                </el-table-column>
+                <el-table-column prop="balance" label="账户余额" width="120" class-name="balance-column">
+                    <template slot-scope="scope">
+                        <span :class="scope.row.balance >= 0 ? 'positive-balance' : 'negative-balance'">
+                            {{ formatBalance(scope.row.balance) }}
+                        </span>
+                    </template>
+                </el-table-column>
+                <el-table-column prop="status" label="状态" width="100">
+                    <template slot-scope="scope">
+                        <el-tag :type="getStatusType(scope.row.unsealTime)" size="small">
+                            {{ getStatusText(scope.row.unsealTime) }}
+                        </el-tag>
+                    </template>
+                </el-table-column>
+                <el-table-column label="倒计时" width="200" v-if="activeTab === 'sealed' || activeTab === 'recent'">
+                    <template slot-scope="scope">
+                        {{ scope.row.countdown || getCountdown(scope.row.unsealTime) }}
+                    </template>
+                </el-table-column>
+            </el-table>
+        </div>
+    </div>
+
+    <script>
+        new Vue({
+            el: '#app',
+            data() {
+                return {
+                    currentTime: '',
+                    activeTab: 'sealed',
+                    items: [],
+                    timer: null,
+                    countdownTimer: null
+                }
+            },
+            computed: {
+                filteredData() {
+                    const now = new Date();
+                    const todayEnd = new Date();
+                    todayEnd.setHours(23, 59, 59, 999);
+
+                    const yesterdayStart = new Date();
+                    yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+                    yesterdayStart.setHours(0, 0, 0, 0);
+
+                    return this.items.filter(item => {
+                        const unsealTime = new Date(item.unsealTime);
+                        if (this.activeTab === 'sealed') {
+                            return unsealTime > now;
+                        } else if (this.activeTab === 'recent') {
+                            return unsealTime <= todayEnd && unsealTime >= yesterdayStart;
+                        } else {
+                            return unsealTime < now;
+                        }
+                    }).sort((a, b) => {
+                        // 未解封的按时间升序(越近的越前)，其他的按时间降序(越近的越前)
+                        if (this.activeTab === 'sealed') {
+                            return new Date(a.unsealTime) - new Date(b.unsealTime);
+                        } else {
+                            return new Date(b.unsealTime) - new Date(a.unsealTime);
+                        }
+                    });
+                }
+            },
+            methods: {
+                goToAddPage() {
+                    // 使用相对路径跳转到添加页面
+                    // window.location.href = 'add.html';
+                    // 或者在新标签页打开
+                    window.open('add.html', '_blank');
+                },
+                tableRowClassName({ row }) {
+                    const unsealTime = new Date(row.unsealTime);
+                    const now = new Date();
+                    const todayEnd = new Date();
+                    todayEnd.setHours(23, 59, 59, 999);
+
+                    const yesterdayStart = new Date();
+                    yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+                    yesterdayStart.setHours(0, 0, 0, 0);
+
+                    if (unsealTime > now) {
+                        return 'sealed-row'; // 未解封
+                    } else {
+                        return 'unsealed-row'; // 已解封
+                    }
+                },
+                updateCurrentTime() {
+                    const now = new Date();
+                    this.currentTime = now.toLocaleString('zh-CN', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: false
+                    });
+
+                    // 更新所有倒计时
+                    this.updateAllCountdowns();
+                },
+                formatDateTime(dateStr) {
+                    const date = new Date(dateStr);
+                    return date.toLocaleString('zh-CN', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: false
+                    });
+                },
+                formatBalance(balance) {
+                    return balance >= 0 ? `¥${balance.toFixed(2)}` : `-¥${Math.abs(balance).toFixed(2)}`;
+                },
+                getStatusText(dateStr) {
+                    const date = new Date(dateStr);
+                    const now = new Date();
+                    return date > now ? '未解封' : '已解封';
+                },
+                getStatusType(dateStr) {
+                    const date = new Date(dateStr);
+                    const now = new Date();
+                    return date > now ? 'warning' : 'success';
+                },
+                getCountdown(dateStr) {
+                    const unsealTime = new Date(dateStr);
+                    const now = new Date();
+
+                    if (unsealTime <= now) return '已解封';
+
+                    const diff = unsealTime - now;
+                    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+                    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+                    return `${days}天 ${Math.floor(hours)}小时 ${minutes}分钟 ${seconds}秒`;
+                },
+                updateAllCountdowns() {
+                    const now = new Date();
+                    this.items.forEach(item => {
+                        const unsealTime = new Date(item.unsealTime);
+                        if (unsealTime > now) {
+                            const diff = unsealTime - now;
+                            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+                            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+                            this.$set(item, 'countdown', `${days}天 ${hours}小时 ${minutes}分钟 ${seconds}秒`);
+                        } else {
+                            this.$set(item, 'countdown', '已解封');
+                        }
+                    });
+                },
+                handleTabClick(tab) {
+                    // 切换标签时不需要额外处理，计算属性会自动更新
+                },
+                loadData() {
+                    fetch('row.json')
+                        .then(response => response.json())
+                        .then(data => {
+                            this.items = data;
+                            // 初始化倒计时
+                            this.updateAllCountdowns();
+                        })
+                        .catch(error => {
+                            console.error('加载数据失败:', error);
+                        });
+                }
+            },
+            mounted() {
+                this.updateCurrentTime();
+                this.timer = setInterval(this.updateCurrentTime, 1000);
+                this.loadData();
+            },
+            beforeDestroy() {
+                if (this.timer) {
+                    clearInterval(this.timer);
+                }
+                if (this.countdownTimer) {
+                    clearInterval(this.countdownTimer);
+                }
+            }
+        });
+    </script>
+</body>
+<style>
+    body {
+        font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif;
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 20px;
+        background-color: #f5f7fa;
+        color: #333;
+    }
+
+    .header {
+        text-align: center;
+        margin-bottom: 30px;
+    }
+
+    .gradient-title {
+        font-size: 2.5rem;
+        font-weight: bold;
+        background: linear-gradient(45deg, #409EFF, #67C23A, #E6A23C);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        animation: gradient 5s ease infinite;
+        background-size: 200% 200%;
+        margin-bottom: 10px;
+    }
+
+    @keyframes gradient {
+        0% {
+            background-position: 0% 50%;
+        }
+
+        50% {
+            background-position: 100% 50%;
+        }
+
+        100% {
+            background-position: 0% 50%;
+        }
+    }
+
+    .current-time {
+        font-size: 1.2rem;
+        color: #666;
+        margin-bottom: 20px;
+    }
+
+    .content-box {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+        padding: 20px;
+    }
+
+    .tab-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+    }
+
+    .color-indicator {
+        display: flex;
+        align-items: center;
+    }
+
+    .color-box {
+        width: 20px;
+        height: 20px;
+        margin-left: 10px;
+        border-radius: 4px;
+    }
+
+    .unsealed-bg {
+        background-color: #f0f9eb;
+    }
+
+    .sealed-bg {
+        background-color: #fdf6ec;
+    }
+
+    .recent-bg {
+        background-color: #ecf5ff;
+    }
+
+    .el-table .warning-row {
+        background-color: #fdf6ec;
+    }
+
+    .el-table .success-row {
+        background-color: #f0f9eb;
+    }
+
+    .el-table .info-row {
+        background-color: #ecf5ff;
+    }
+
+    .balance-column {
+        font-weight: bold;
+    }
+
+    .positive-balance {
+        color: #67C23A;
+    }
+
+    .negative-balance {
+        color: #F56C6C;
+    }
+
+    .el-table .sealed-row {
+        background-color: #fdf6ec;
+        /* 未解封 - 浅黄色 */
+    }
+
+    .el-table .recent-row {
+        background-color: #ecf5ff;
+        /* 近期解封 - 浅蓝色 */
+    }
+
+    .el-table .unsealed-row {
+        background-color: #f0f9eb;
+        /* 已解封 - 浅绿色 */
+    }
+
+    .el-table td,
+    .el-table th {
+        text-align: center !important;
+    }
+
+    .el-table .cell {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .el-table .el-tag {
+        margin: 0 auto;
+    }
+
+    .action-buttons {
+        position: fixed;
+        bottom: 30px;
+        right: 30px;
+        z-index: 1000;
+    }
+
+    .add-button {
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        padding: 12px 20px;
+        font-size: 16px;
+    }
+
+    /* 或者如果您想要按钮在页面顶部 */
+    /*
+    .action-buttons {
+    text-align: right;
+    margin-bottom: 20px;
+    padding-right: 20px;
+    }
+    */
+</style>
+
+</html>

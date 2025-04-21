@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据添加表单</title>
+    <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+    <script src="https://unpkg.com/element-ui/lib/index.js"></script>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f7fa;
+        }
+
+        .form-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+            padding: 30px;
+        }
+
+        .form-title {
+            text-align: center;
+            margin-bottom: 25px;
+            color: #409EFF;
+        }
+
+        .form-footer {
+            margin-top: 30px;
+            text-align: center;
+        }
+
+        .company-select {
+            margin-bottom: 15px;
+        }
+
+        .copy-btn {
+            margin-left: 15px;
+        }
+
+        /* 表单整体样式 */
+        .el-form-item__content {
+            line-height: normal;
+        }
+
+        /* 选择器样式 */
+        .el-select {
+            width: 100%;
+        }
+
+        /* 响应式调整 - 在小屏幕上恢复垂直布局 */
+        @media (max-width: 768px) {
+            .el-form-item .el-select {
+                margin-bottom: 10px;
+            }
+
+            .el-form-item .el-select+.el-select {
+                margin-left: 0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="app">
+        <div class="form-container">
+            <h2 class="form-title">添加解封数据</h2>
+
+            <el-form :model="formData" :rules="rules" ref="form" label-width="100px">
+                <el-form-item label="公司/账号" prop="company" required>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                      <!-- 公司选择 -->
+                      <el-select
+                        v-model="formData.company"
+                        placeholder="选择公司"
+                        @change="handleCompanyChange"
+                        style="flex: 1"
+                        filterable>
+                        <el-option
+                          v-for="company in companies"
+                          :key="company.name"
+                          :label="company.name"
+                          :value="company.name">
+                        </el-option>
+                      </el-select>
+                      
+                      <!-- 账号选择 -->
+                      <el-select
+                        v-model="formData.account"
+                        placeholder="选择账号"
+                        style="flex: 1"
+                        :disabled="!formData.company"
+                        filterable>
+                        <el-option
+                          v-for="account in filteredAccounts"
+                          :key="account"
+                          :label="account"
+                          :value="account">
+                        </el-option>
+                      </el-select>
+                    </div>
+                  </el-form-item>
+
+                <!-- 封禁原因 -->
+                <el-form-item label="封禁原因" prop="banReason">
+                    <el-input v-model="formData.banReason" placeholder="请输入封禁原因"></el-input>
+                </el-form-item>
+
+                <!-- 限制内容 -->
+                <el-form-item label="限制内容" prop="restriction">
+                    <el-input v-model="formData.restriction" placeholder="请输入限制内容"></el-input>
+                </el-form-item>
+
+                <!-- 账户余额 -->
+                <el-form-item label="账户余额" prop="balance">
+                    <el-input-number v-model="formData.balance" :precision="2" :step="0.1" :min="-999999" :max="999999">
+                    </el-input-number>
+                </el-form-item>
+
+                <!-- 解封时间 -->
+                <el-form-item label="解封时间" prop="unsealTime">
+                    <el-date-picker v-model="formData.unsealTime" type="datetime" placeholder="选择解封时间"
+                        value-format="yyyy-MM-ddTHH:mm:ss" :picker-options="pickerOptions">
+                    </el-date-picker>
+                </el-form-item>
+
+                <el-form-item class="form-footer">
+                    <el-button type="primary" @click="handleSubmit" :loading="submitting">
+                        生成数据
+                    </el-button>
+                    <el-button @click="copyToClipboard" :disabled="!generatedData" class="copy-btn">
+                        复制数据
+                    </el-button>
+                </el-form-item>
+            </el-form>
+
+            <!-- 生成的数据预览 -->
+            <el-card v-if="generatedData" class="data-preview">
+                <div slot="header">
+                    <span>生成的数据</span>
+                </div>
+                <pre>{{ generatedData }}</pre>
+            </el-card>
+        </div>
+    </div>
+
+    <script>
+        new Vue({
+            el: '#app',
+            data() {
+                return {
+                    formData: {
+                        company: '',
+                        account: '',
+                        banReason: '',
+                        restriction: '',
+                        balance: 0,
+                        unsealTime: ''
+                    },
+                    rules: {
+                        company: [
+                            { required: true, message: '请选择公司', trigger: 'change' }
+                        ],
+                        account: [
+                            { required: true, message: '请选择账号', trigger: 'change' }
+                        ],
+                        banReason: [
+                            { required: true, message: '请输入封禁原因', trigger: 'blur' }
+                        ],
+                        restriction: [
+                            { required: true, message: '请输入限制内容', trigger: 'blur' }
+                        ],
+                        unsealTime: [
+                            { required: true, message: '请选择解封时间', trigger: 'change' }
+                        ]
+                    },
+                    companies: [
+                        { name: '四川辉晨网络有限公司', accounts: ['hc12151@163.com', 'hc21515@163.com', 'hc31511@163.com'] },
+                        { name: '四川祥春网络有限公司', accounts: ['17313333863', 'xc45765884@163.com', 'xc457673@163.com'] },
+                        { name: '四川利祥科技有限公司', accounts: ['lx3300x@163.com', 'lx5284697@163.com', 'lx10151@163.com'] },
+                        { name: '四川旌东里网络有限公司', accounts: ['qjd75684@163.com', 'qjdm54894@163.com', 'jdln47665@163.com'] },
+                        { name: '四川阔蓝科技有限公司', accounts: ['kn785800@163.com', 'kn56880007@163.com', 'kn75324987@163.com'] },
+                        { name: '四川诚威科技有限公司', accounts: ['cw780040@163.com', 'cw780006@163.com', 'cw800080@163.com'] },
+                        { name: '四川旗盛科技有限公司', accounts: ['scqs9975254@163.com', 'scqs8527643@163.com', 'scqs1452560@163.com'] },
+                    ],
+                    filteredAccounts: [],
+                    pickerOptions: {
+                        disabledDate(time) {
+                            return time.getTime() < Date.now() - 8.64e7; // 禁止选择昨天之前的时间
+                        }
+                    },
+                    existingData: [],
+                    generatedData: null,
+                    submitting: false
+                }
+            },
+            created() {
+                this.loadExistingData();
+            },
+            methods: {
+                loadExistingData() {
+                    // 模拟从row.json加载现有数据
+                    fetch('row.json')
+                        .then(response => response.json())
+                        .then(data => {
+                            this.existingData = data;
+                        })
+                        .catch(error => {
+                            console.error('加载数据失败:', error);
+                            this.$message.error('加载现有数据失败');
+                        });
+                },
+                handleCompanyChange(company) {
+                    this.formData.account = '';
+                    const selectedCompany = this.companies.find(c => c.name === company);
+                    this.filteredAccounts = selectedCompany ? selectedCompany.accounts : [];
+                },
+                handleSubmit() {
+                    this.$refs.form.validate((valid) => {
+                        if (!valid) return;
+
+                        this.submitting = true;
+
+                        // 模拟异步处理
+                        setTimeout(() => {
+                            this.processData();
+                            this.submitting = false;
+                        }, 500);
+                    });
+                },
+                processData() {
+                    // 1. 检查重复数据
+                    const isDuplicate = this.existingData.some(item =>
+                        item.account === this.formData.account &&
+                        item.unsealTime === this.formData.unsealTime
+                    );
+
+                    if (isDuplicate) {
+                        this.$message.warning('已存在相同账号和解封时间的数据');
+                        return;
+                    }
+
+                    // 2. 创建新数据对象
+                    const newData = {
+                        account: this.formData.account,
+                        company: this.formData.company,
+                        banReason: this.formData.banReason,
+                        restriction: this.formData.restriction,
+                        balance: this.formData.balance,
+                        unsealTime: this.formData.unsealTime
+                    };
+
+                    // 3. 合并并排序数据
+                    const combinedData = [...this.existingData, newData];
+
+                    // 按解封时间排序
+                    combinedData.sort((a, b) => {
+                        return new Date(a.unsealTime) - new Date(b.unsealTime);
+                    });
+
+                    // 4. 生成JSON字符串
+                    this.generatedData = JSON.stringify(combinedData, null, 2);
+
+                    this.$message.success('数据生成成功');
+                },
+                copyToClipboard() {
+                    if (!this.generatedData) return;
+
+                    const textarea = document.createElement('textarea');
+                    textarea.value = this.generatedData;
+                    document.body.appendChild(textarea);
+                    textarea.select();
+
+                    try {
+                        document.execCommand('copy');
+                        this.$message.success('已复制到剪贴板');
+                    } catch (err) {
+                        this.$message.error('复制失败: ' + err);
+                    }
+
+                    document.body.removeChild(textarea);
+                }
+            }
+        });
+    </script>
+</body>
+
+</html>
