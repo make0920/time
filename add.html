@@ -119,7 +119,7 @@
                 <el-form-item class="form-footer">
                     <!-- 提交按钮和弹窗 -->
                     <el-button type="primary" @click="showTokenDialog">提交数据</el-button>
-                    <el-button type="primary" @click="handleSubmit" :loading="submitting">
+                    <el-button type="primary" plain @click="handleSubmit" :loading="submitting">
                         生成数据
                     </el-button>
                     <el-button @click="copyToClipboard" :disabled="!generatedData" class="copy-btn">
@@ -357,20 +357,20 @@
                     };
 
                     // 3. 合并并排序数据
-                    const combinedData = [...this.existingData, newData];const combinedData =[…]existingData newData);
+                    const combinedData = [...this.existingData, newData];
 
                     // 按解封时间排序
-                    combinedData.sort((a, b) => {combinedData。Sort ((a, b) = bb0 {
-                        return new Date(a.unsealTime) - new Date(b.unsealTime);返回新的日期(a.a unsealtime) -新的日期（b.a unsealtime）；
+                    combinedData.sort((a, b) => {
+                        return new Date(a.unsealTime) - new Date(b.unsealTime);
                     });
 
                     // 4. 生成JSON字符串
-                    this.generatedData = JSON.stringify(combinedData, null, 2);this。generatedData = JSON。stringify(组合，null, 2);
+                    this.generatedData = JSON.stringify(combinedData, null, 2);
 
                     this.$message.success('数据生成成功');
                 },
                 copyToClipboard() {
-                    if (!this.generatedData) return;if (!this.generatedData) return；
+                    if (!this.generatedData) return;
 
                     const textarea = document.createElement('textarea');
                     textarea.value = this.generatedData;
@@ -388,7 +388,7 @@
                 }
             }
         });
-    </script>   > < /脚本
+    </script>
 </body>
 
 </html>
