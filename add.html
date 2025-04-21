@@ -208,7 +208,7 @@
             },
             created() {
                 // 版本日志（添加这行）
-                console.log('%c 解封数据管理系统 %c v1.0.0 ',
+                console.log('%c 解封数据管理系统 %c v1.0.1 ',
                     'background:#35495e; padding: 1px; border-radius: 3px 0 0 3px; color: #fff',
                     'background:#41b883; padding: 1px; border-radius: 0 3px 3px 0; color: #fff');
                 this.loadExistingData();
@@ -273,7 +273,7 @@
                     try {
                         // 1. 获取当前文件内容
                         const getResponse = await fetch(
-                            'https://api.github.com/repos/make0920/demo/contents/row.json',
+                            'https://api.github.com/repos/make0920/demo/row.json',
                             {
                                 headers: {
                                     'Authorization': `token ${token}`,
